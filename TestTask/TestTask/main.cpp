@@ -10,68 +10,60 @@ using namespace std;
 
 double randn()
 {
-	// 1. Инициализация устройства для получения случайного зерна (seed)
-		static random_device rd;	// Источник энтропии (зависит от системы)
+	// 1. Initializing the device to receive random seed
+		static random_device rd;
 
-	// 2. Инициализация генератора случайных чисел Mersenne Twister
-		static mt19937 gen(rd());	// Генератор с seed от random_device
+	// 2. Initializing the random number generator Mersenne Twister
+		static mt19937 gen(rd());
 
-	// 3. Создание стандартного нормального распределения (N(0,1))
+	// 3. Creating a standard normal distribution (N(0,1))
 		static normal_distribution<> dist(0, 1);
 
-	// 4. Генерация и возврат случайного числа
+	// 4. Generating and returning a random number
 		return dist(gen);
-
-	//// 1. Инициализация генератора случайных чисел
-	//	default_random_engine generator;
-
-	//// 2. Создание стандартного нормального распределения (N(0,1))
-	//	normal_distribution<double> distribution(0, 1);
-
-	//// 3. Генерация и возврат случайного числа
-	//	return distribution(generator);
 }
 
 
 void de2bi(int* Output, int* M)
 {
-	int k = log2(*M);									// Кол-во бит в символе
-	int* vsp = new int[*M];								// Массив 0 : M-1
-	for (int i = 0; i < *M; i++) { *(vsp + i) = i; }	// Массив 0 : M-1
+	int k = log2(*M);									// Number of bits in a symbol
+	int* vsp = new int[*M];								// Array  [0 : M-1]
+	for (int i = 0; i < *M; i++) { *(vsp + i) = i; }	// Array  [0 : M-1]
 	
 	for (int i = 0; i < *M; i++) {						// |
 		for (int j = k-1; j >= 0; j--) {				// |
-			*(Output + k*i+j) = *(vsp+i) % 2;			// | Основной цикл функции
+			*(Output + k*i+j) = *(vsp+i) % 2;			// | The main loop of function
 			*(vsp + i) = *(vsp + i) / 2;				// |
 		}												// |
 	}													// |
 
-	delete[] vsp;										// Освобождение памяти
+	delete[] vsp;										// Clear memory
 }
 
 
 class Mapper
 {
 	public:
-		int M;
+		int M;								// The order of modulation
 
-		complex<double>* constellation;
+		complex<double>* constellation;		// The signal constellation
 
 
 		void CalcAuxParams()
 		{
-			// Всякие проверки
+			// Some checks
+				// Maybe in another version
 				
-			// Расчёт сигнального созвездия
+			// Calculation of the signal constellation
 				constellation = new complex<double>[M];
-				int k = log2(M);							// Кол-во в символе
-				int sizeCB = M*k;							// Кол-во бит, необходимое для получения сигнального созвездия
-				int* ConstBits = new int[sizeCB];			// Массив бит, для создания созвездия
+				int k = log2(M);							// Number of symbols
+				int sizeCB = M*k;							// Number of bits required to getting the constellation
+				int* ConstBits = new int[sizeCB];			// Array of bits to create a constellation
 			
-				de2bi(ConstBits, &M);						// Заполнение ConstBits
-				StepTx(constellation, ConstBits, &M);		// Получение сигнального созвездия
+				de2bi(ConstBits, &M);						// Filling ConstBits
+				StepTx(constellation, ConstBits, &M);		// Getting the constellation
 
-				delete[] ConstBits;							// Освобождение памяти
+				delete[] ConstBits;							// Clear memory
 		}
 
 		void StepTx(complex<double>* Output, int* Input, int* Ns)
@@ -140,18 +132,16 @@ class Channel
 	public:
 		void Step(complex<double>* Output, complex<double>* Input, double* sigma2, int* Ns)
 		{
-			// randn() генерирует нормально-распределённую СВ с нулевым средним и дисперсией 1, СКО 
-			// следовательно тоже единица. В нашем случае комплексный шум с дисперсией 2*sigma^2,
-			// т.е. для каждой квадратуры шум с дисперсией sigma^2. Вспомнив из теории вероятности 
-			// следующее тождество: D[a*ksi] = a^2 * D[ksi], становится понятно, что randn нужно
-			// домножить на sigma, для получения шума с требуемой дисперсией sigma^2
+			// randn() generates a normally distributed RV with zero mean and variance of 1, MSE 
+			// is also equal to 1. In our case, complex noise with variance 2*sigma^2, that is, 
+			// for each quadrature noise with variance sigma^2. Remembering from probability theory
+			// the following identity: D[a*ksi] = a^2 * D[ksi], it becomes clear that randn needs
+			// multiply by sigma, to get the noise with the required variance sigma^2
 
 			double sigma = sqrt(*sigma2);
 
 			for (int i = 0; i < *Ns; i++) {
-				double a = randn();
-				double b = randn();
-				*(Output+i) = *(Input+i) + complex<double>(sigma*a, sigma*b);
+				*(Output+i) = *(Input+i) + complex<double>(sigma*randn(), sigma*randn());
 			}
 		}
 };
@@ -159,40 +149,39 @@ class Channel
 
 int main()
 {
-	setlocale(LC_ALL, "rus");
 	srand(time(NULL));
 
-	// Инициализация параметров моделирования
-		Mapper QAM;												// Инициализация объекта модулятора
-		Channel AWGN;											// Инициализация объекта канала
-		QAM.M = 64;												// Порядок модуляции
-		int Ns = 1e5;											// Кол-во модуляционных символов
-		int N = Ns*log2(QAM.M);									// Кол-во информационных бит
+	// Initialization of modeling parameters
+		Mapper QAM;												// Initialization of the modulator object
+		Channel AWGN;											// Initialization of the channel object
+		QAM.M = 64;												// The order of modulation
+		int Ns = 1e4;											// Number of modulation symbols
+		int N = Ns*log2(QAM.M);									// Number of information bits
 
-	// Инициализация параметров кривой помехоустойчивости
-		int Nav = 1e2;											// Кол-во усреднений
-		double VARmin = 0.05;									// Начальная дисперсия
-		double VARstep = 0.025;									// Шаг дисперсии
-		double VARmax = 0.5;									// Конечная дисперсия
-		int VARsize = floor((VARmax - VARmin) / VARstep) + 1;	// Длина массива дисперсий
+	// Initialization of noise immunity curve parameters
+		int Nav = 1e2;											// Number of averages
+		double VARmin = 0.05;									// Initial variance
+		double VARstep = 0.025;									// The variance step
+		double VARmax = 0.5;									// The final variance
+		int VARsize = floor((VARmax - VARmin) / VARstep) + 1;	// The length of the variance array
 
-	// Запускаем расчёт вспомогательных параметров и проверку параметров
+	// Starting the calculation of auxiliary parameters and checking the parameters
 		QAM.CalcAuxParams();
 
-	// Инициализация массивов моделирования
-		int* Tx_InfBit = new int[N];							// Массив информационных бит
-		int* Rx_InfBit = new int[N];							// Массив принятых инф. бит
-		complex<double>* Tx_ModSym = new complex<double>[Ns];	// Массив модуляционных символов
-		complex<double>* Rx_ModSym = new complex<double>[Ns];	// Массив принятых мод. символов
+	// Initializing modeling arrays
+		int* Tx_InfBit = new int[N];							// Array of information bits
+		int* Rx_InfBit = new int[N];							// Array of received inf. bits
+		complex<double>* Tx_ModSym = new complex<double>[Ns];	// Array of modulation symbols
+		complex<double>* Rx_ModSym = new complex<double>[Ns];	// Array of received mod. symbols
 
-	// Инициализация массивов кривой помехоустойчивости
-		double* VAR = new double[VARsize];						// Массив дисперсий
-		double* BER = new double[VARsize];						// Массив битовой вероятности ошибки
+	// Initializing noise immunity curve arrays
+		double* VAR = new double[VARsize];						// Array of variances
+		double* BER = new double[VARsize];						// Array of bit error probability
 
-		for (int i = 0; i < VARsize; i++) { *(VAR + i) = VARmin + VARstep*i; }	// Заполнение
-		for (int i = 0; i < VARsize; i++) { *(BER + i) = 0; }					// Заполнение
+		for (int i = 0; i < VARsize; i++) { *(VAR + i) = VARmin + VARstep*i; }	// Initial filling VAR
+		for (int i = 0; i < VARsize; i++) { *(BER + i) = 0; }					// Initial filling BER
 
-	// Основной цикл моделирования
+	// Main loop
 		for (int i = 0; i < VARsize; i++) {
 			double Sigma2 = *(VAR+i);
 			cout << Sigma2 << "\t";
@@ -218,19 +207,19 @@ int main()
 			}
 		}
 
-	// Нормировка и вывод BER
+	// Normalize and display BER
 		cout << endl;
 		for (int h = 0; h < VARsize; h++) {
 			*(BER + h) = *(BER + h) / N / Nav;
 			cout << *(BER + h) << "\t";
 		} cout << endl;
 		
-	// Запись в файл
+	// Writing in file
 		ofstream fout;
 		fout.open("BER_from_Cpp.txt");
 
 		if (!fout.is_open()) {
-			cout << "Ошибка открытия файла" << endl;
+			cout << "File opening error" << endl;
 		}
 		else {
 			for (int h = 0; h < VARsize; h++) {
@@ -246,7 +235,7 @@ int main()
 
 		fout.close();
 
-	// Освобождение памяти
+	// Clear memory
 		delete[] Tx_InfBit;
 		delete[] Rx_InfBit;
 		delete[] Tx_ModSym;
